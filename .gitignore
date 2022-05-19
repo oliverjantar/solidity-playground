@@ -1,0 +1,10 @@
+# dependencies
+node_modules
+
+# npm
+npm-debug.log
+
+# dotenv
+.env
+
+
