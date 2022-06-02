@@ -7,4 +7,7 @@ npm-debug.log
 # dotenv
 .env
 
+.vscode
+
+build
 

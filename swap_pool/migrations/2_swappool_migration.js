@@ -1,5 +1,5 @@
-const SwapPool = artifacts.require("SwapPool");
+const SwapPoolToken = artifacts.require("SwapPoolToken");
 
 module.exports = function (deployer) {
-  deployer.deploy(SwapPool);
+  deployer.deploy(SwapPoolToken);
 };
