@@ -3,7 +3,7 @@ module.exports = {
   // for more about customizing your Truffle configuration!
   networks: {
     development: {
-      host: "172.31.32.1",
+      host: "172.20.128.1",
       port: 7545,
       network_id: "*", // Match any network id
     },
@@ -11,9 +11,5 @@ module.exports = {
       port: 8545,
     },
   },
-  compilers: {
-    solc: {
-      version: "^0.8.0",
-    },
-  },
+  
 };
