@@ -59,7 +59,7 @@ contract SwapPoolToken is ERC20 {
         _amount0 += normalizedAmount0;
         _amount1 += normalizedAmount1;
 
-        uint256 lpAmount = sqrt(normalizedAmount0 * normalizedAmount1);
+        uint256 lpAmount = (amount0 * amount1);
         _mint(account, lpAmount);
 
         require(
