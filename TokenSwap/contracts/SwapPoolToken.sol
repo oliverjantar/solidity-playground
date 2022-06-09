@@ -2,6 +2,7 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./ITokenReceiver.sol";
 
 contract SwapPoolToken is ERC20 {
     uint256 public _amount0;
@@ -14,6 +15,11 @@ contract SwapPoolToken is ERC20 {
 
     address public _token0;
     address public _token1;
+
+    enum Tokens {
+        token0,
+        token1
+    }
 
     constructor(address token0, address token1) ERC20("SwapPoolToken", "SPT") {
         _token0 = token0;
@@ -30,53 +36,53 @@ contract SwapPoolToken is ERC20 {
         uint256 feeToken0 = (amount0 * 3) / 1000;
         uint256 feeToken1 = (amount1 * 3) / 1000;
 
-        if (
-            ((_amount0 * (10**2)) / _amount1) == ((amount0 * (10**2)) / amount1)
-        ) {
-            amount0Mut -= feeToken0;
-            amount1Mut -= feeToken1;
+        require(
+            ((_amount0 * (10**2)) / _amount1) ==
+                ((amount0 * (10**2)) / amount1),
+            "Incorrect ratio of tokens"
+        );
+        amount0Mut -= feeToken0;
+        amount1Mut -= feeToken1;
 
-            _amount0 += amount0Mut;
-            _amount1 -= amount1Mut;
+        _amount0 += amount0Mut;
+        _amount1 -= amount1Mut;
 
-            _feeToken0 += feeToken0;
-            _feeToken1 += feeToken1;
+        _feeToken0 += feeToken0;
+        _feeToken1 += feeToken1;
 
-            IERC20(_token0).transferFrom(msg.sender, address(this), amount0); //reentrancy attack
-            IERC20(_token1).transfer(msg.sender, amount1Mut);
-        }
+        IERC20(_token0).transferFrom(msg.sender, address(this), amount0); //reentrancy attack
+        IERC20(_token1).transfer(msg.sender, amount1Mut);
     }
 
-    function swapNormalized(uint256 amount0, uint256 amount1) public {
-        uint256 normalizedAmount0 = amount0 * (10**18);
-        uint256 normalizedAmount1 = amount1 * (10**18);
+    function flashLoan(
+        address sender,
+        Tokens token,
+        uint256 amount
+    ) public {
+        address tokenAddress;
 
-        uint256 feeToken0 = (normalizedAmount0 * 3) / 10;
-        uint256 feeToken1 = (normalizedAmount1 * 3) / 10;
+        if (token == Tokens.token0) {
+            tokenAddress = _token0;
+        } else if (token == Tokens.token1) {
+            tokenAddress = _token1;
+        }
 
-        if (
-            (((_amount0 * (10**18)) / _amount1) * (10**18)) ==
-            (((normalizedAmount0 * (10**18)) / normalizedAmount1) * (10**18))
-        ) {
-            normalizedAmount0 -= feeToken0;
-            normalizedAmount1 -= feeToken1;
+        uint256 balance = IERC20(tokenAddress).balanceOf(address(this));
 
-            _amount0 += normalizedAmount0;
-            _amount1 -= normalizedAmount1;
+        require(balance >= amount, "Insufficient balance in the swap pool");
 
-            _feeToken0 += feeToken0;
-            _feeToken1 += feeToken1;
+        IERC20(tokenAddress).transfer(sender, amount);
 
-            IERC20(_token0).transferFrom(
-                msg.sender,
-                address(this),
-                normalizedAmount0
-            ); //reentrancy attack
-            IERC20(_token1).transferFrom(
-                address(this),
-                msg.sender,
-                normalizedAmount1
-            );
+        uint256 fee = (amount * 3) / 1000;
+
+        ITokenReceiver(sender).tokenReceived(amount + fee);
+
+        IERC20(tokenAddress).transferFrom(sender, address(this), amount + fee);
+
+        if (token == Tokens.token0) {
+            _feeToken0 += fee;
+        } else if (token == Tokens.token1) {
+            _feeToken1 += fee;
         }
     }
 
@@ -107,6 +113,8 @@ contract SwapPoolToken is ERC20 {
 
     function removeLiquidity(uint256 liquidity) public {
         uint256 _liquidity = (_amount0 * _amount1);
+        require(_liquidity >= liquidity, "Not enough liquidity in pool");
+
         uint256 ratio = (liquidity * (10**2)) / (_liquidity);
 
         uint256 amount0 = (_amount0 * ratio) / (10**2);

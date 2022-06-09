@@ -1,5 +1,4 @@
 const { expect } = require("chai");
-const exp = require("constants");
 const { ethers } = require("hardhat");
 
 describe("SwapPoolToken contract", function () {
@@ -91,7 +90,7 @@ describe("SwapPoolToken contract", function () {
   });
 
   it("Removes liquidity from pool", async () => {
-    const [owner, addr1] = await ethers.getSigners();
+    const [, addr1] = await ethers.getSigners();
 
     await swapPoolToken
       .connect(addr1)
@@ -129,7 +128,7 @@ describe("SwapPoolToken contract", function () {
   });
 
   it("Swaps one token for another", async () => {
-    const [owner, addr1, addr2] = await ethers.getSigners();
+    const [, , addr2] = await ethers.getSigners();
 
     await testToken0.connect(addr2).mintTestTokens(1 * 10 ** 6);
 
@@ -140,7 +139,6 @@ describe("SwapPoolToken contract", function () {
       0,
       "Addr2 balance of token1 does not match"
     );
-    console.log("here");
 
     await swapPoolToken.connect(addr2).swap(1 * 10 ** 6, 2 * 10 ** 6);
 
@@ -159,28 +157,115 @@ describe("SwapPoolToken contract", function () {
     const balancePoolToken0 = await testToken0.balanceOf(swapPoolToken.address);
     expect(balancePoolToken0).to.equal(3000000);
 
-    // const poolToken0balance = await testToken0.balanceOf(swapPoolToken.address);
-    // expect(poolToken0balance).to.equal(
-    //   0,
-    //   "Pool's balance of token0 does not match"
-    // );
+    const balancePoolToken1 = await testToken1.balanceOf(swapPoolToken.address);
+    expect(balancePoolToken1).to.equal(2006000);
+  });
 
-    // const poolToken1balance = await testToken1.balanceOf(swapPoolToken.address);
-    // expect(poolToken1balance).to.equal(
-    //   0,
-    //   "Pool's balance of token1 does not match"
-    // );
+  it("Removes liquidity to collect fees", async () => {
+    const [, addr1, addr2] = await ethers.getSigners();
 
-    // const lpTokens = await swapPoolToken.balanceOf(addr1.address);
-    // expect(lpTokens).to.equal(
-    //   0,
-    //   "Account1 balance of liquidity tokens does not match."
-    // );
+    await testToken0.connect(addr2).mintTestTokens(1 * 10 ** 6);
 
-    // const balance0After = await testToken0.balanceOf(addr1.address);
-    // expect(balance0After).to.equal(400, "balance of account1 does not match");
+    testToken0.connect(addr2).approve(swapPoolToken.address, 1 * 10 ** 6);
 
-    // const balance1After = await testToken1.balanceOf(addr1.address);
-    // expect(balance1After).to.equal(800, "balance of account1 does not match");
+    await swapPoolToken.connect(addr2).swap(1 * 10 ** 6, 2 * 10 ** 6);
+
+    await swapPoolToken.connect(addr1).removeLiquidity(4 * 10 ** 12);
+
+    const poolToken0balance = await testToken0.balanceOf(swapPoolToken.address);
+    expect(poolToken0balance).to.equal(
+      1020000,
+      "Pool's balance of token0 does not match"
+    );
+
+    const poolToken1balance = await testToken1.balanceOf(swapPoolToken.address);
+    expect(poolToken1balance).to.equal(
+      678080,
+      "Pool's balance of token1 does not match"
+    );
+
+    const lpTokens = await swapPoolToken.balanceOf(addr1.address);
+    expect(lpTokens).to.equal(
+      4 * 10 ** 12,
+      "Account1 balance of liquidity tokens does not match."
+    );
+
+    const balance0After = await testToken0.balanceOf(addr1.address);
+    expect(balance0After).to.equal(
+      3980000,
+      "balance of account1 does not match"
+    );
+
+    const balance1After = await testToken1.balanceOf(addr1.address);
+    expect(balance1After).to.equal(
+      5327920,
+      "balance of account1 does not match"
+    );
+  });
+
+  it("Cannot remove more liquidity than is in the pool", async () => {
+    const [, addr1, addr2] = await ethers.getSigners();
+
+    await testToken0.connect(addr2).mintTestTokens(1 * 10 ** 6);
+
+    testToken0.connect(addr2).approve(swapPoolToken.address, 1 * 10 ** 6);
+
+    await swapPoolToken.connect(addr2).swap(1 * 10 ** 6, 2 * 10 ** 6);
+
+    await expect(
+      swapPoolToken.connect(addr1).removeLiquidity(8 * 10 ** 12)
+    ).to.be.revertedWith("Not enough liquidity in pool");
+  });
+
+  it("Cannot swap two tokens with different price", async () => {
+    const [, , addr2] = await ethers.getSigners();
+
+    await testToken0.connect(addr2).mintTestTokens(1 * 10 ** 6);
+
+    testToken0.connect(addr2).approve(swapPoolToken.address, 1 * 10 ** 6);
+
+    const balanceBeforeSwap = await testToken1.balanceOf(addr2.address);
+    expect(balanceBeforeSwap).to.equal(
+      0,
+      "Addr2 balance of token1 does not match"
+    );
+
+    await expect(
+      swapPoolToken.connect(addr2).swap(1 * 10 ** 6, 1 * 10 ** 6)
+    ).to.be.revertedWith("Incorrect ratio of tokens");
+  });
+
+  it("Performs flash loan", async () => {
+    const PriceChecker = await ethers.getContractFactory("PriceChecker");
+
+    priceChecker = await PriceChecker.deploy(testToken0.address);
+
+    await swapPoolToken.flashLoan(priceChecker.address, 0, 1000000);
+
+    const balancePoolToken0 = await testToken0.balanceOf(swapPoolToken.address);
+    expect(balancePoolToken0).to.equal(2003000);
+
+    const balancePriceChecker = await testToken0.balanceOf(
+      priceChecker.address
+    );
+    expect(balancePriceChecker).to.equal(97000);
+  });
+
+  it("Fails to do flashloan due to insufficient amount in the swap pool", async () => {
+    const PriceChecker = await ethers.getContractFactory("PriceChecker");
+
+    priceChecker = await PriceChecker.deploy(testToken0.address);
+
+    await expect(
+      swapPoolToken.flashLoan(priceChecker.address, 0, 3000000)
+    ).to.be.revertedWith("Insufficient balance in the swap pool");
+
+    const balancePoolToken0 = await testToken0.balanceOf(swapPoolToken.address);
+    expect(balancePoolToken0).to.equal(2000000);
+
+    const balancePriceChecker = await testToken0.balanceOf(
+      priceChecker.address
+    );
+    expect(balancePriceChecker).to.equal(0);
   });
 });
