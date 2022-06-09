@@ -268,4 +268,45 @@ describe("SwapPoolToken contract", function () {
     );
     expect(balancePriceChecker).to.equal(0);
   });
+
+  it("Fails to do flashloan if contract won't approve borrowed amount", async () => {
+    const FakePriceChecker = await ethers.getContractFactory(
+      "FakePriceChecker"
+    );
+
+    fakePriceChecker = await FakePriceChecker.deploy(testToken0.address);
+
+    await expect(
+      swapPoolToken.flashLoan(fakePriceChecker.address, 0, 1000000)
+    ).to.be.revertedWith(
+      "Insufficient allowance to transfer tokens back to swap pool"
+    );
+
+    const balancePoolToken0 = await testToken0.balanceOf(swapPoolToken.address);
+    expect(balancePoolToken0).to.equal(2000000);
+
+    const balancePriceChecker = await testToken0.balanceOf(
+      priceChecker.address
+    );
+    expect(balancePriceChecker).to.equal(0);
+  });
+  it("Fails to do flashloan if contract won't have enough tokens to return it back to swap pool", async () => {
+    const FakePriceChecker = await ethers.getContractFactory(
+      "FakePriceChecker2"
+    );
+
+    fakePriceChecker = await FakePriceChecker.deploy(testToken0.address);
+
+    await expect(
+      swapPoolToken.flashLoan(fakePriceChecker.address, 0, 1000000)
+    ).to.be.revertedWith("Insufficient token balance in the sender");
+
+    const balancePoolToken0 = await testToken0.balanceOf(swapPoolToken.address);
+    expect(balancePoolToken0).to.equal(2000000);
+
+    const balancePriceChecker = await testToken0.balanceOf(
+      priceChecker.address
+    );
+    expect(balancePriceChecker).to.equal(0);
+  });
 });

@@ -77,6 +77,21 @@ contract SwapPoolToken is ERC20 {
 
         ITokenReceiver(sender).tokenReceived(amount + fee);
 
+        uint256 senderBalance = IERC20(tokenAddress).balanceOf(sender);
+        require(
+            senderBalance >= amount + fee,
+            "Insufficient token balance in the sender"
+        );
+
+        uint256 allowance = IERC20(tokenAddress).allowance(
+            sender,
+            address(this)
+        );
+        require(
+            allowance >= amount + fee,
+            "Insufficient allowance to transfer tokens back to swap pool"
+        );
+
         IERC20(tokenAddress).transferFrom(sender, address(this), amount + fee);
 
         if (token == Tokens.token0) {
