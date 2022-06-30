@@ -14,13 +14,15 @@ async function main() {
   // await hre.run('compile');
 
   // We get the contract to deploy
-  const Greeter = await hre.ethers.getContractFactory("Greeter");
-  const greeter = await Greeter.deploy("Hello, Hardhat!");
+  const Token = await hre.ethers.getContractFactory("Token");
+  const token = await Token.deploy(100000000);
 
-  await greeter.deployed();
+  await token.deployed();
 
-  console.log("Greeter deployed to:", greeter.address);
+  console.log("Token contract deployed to:", token.address);
+}
 
+async function sendEth() {
   const [owner, feeCollector, operator] = await ethers.getSigners();
 
   await owner.sendTransaction({
