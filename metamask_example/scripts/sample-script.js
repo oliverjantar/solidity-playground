@@ -15,11 +15,21 @@ async function main() {
 
   // We get the contract to deploy
   const Token = await hre.ethers.getContractFactory("Token");
-  const token = await Token.deploy(100000000);
+  const token = await Token.deploy(10 ** 15);
 
   await token.deployed();
 
   console.log("Token contract deployed to:", token.address);
+
+  await token.transfer(
+    "0xC9De53977c2A7adb80a8cd7172b2A4154ED0d1f7",
+    5 * 10 ** 14
+  );
+
+  const balance = await token.balanceOf(
+    "0xC9De53977c2A7adb80a8cd7172b2A4154ED0d1f7"
+  );
+  console.log("balance", balance);
 }
 
 async function sendEth() {
